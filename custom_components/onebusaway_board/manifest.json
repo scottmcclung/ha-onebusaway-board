@@ -1,0 +1,11 @@
+{
+  "domain": "onebusaway_board",
+  "name": "OneBusAway Board",
+  "codeowners": ["@scottmcclung"],
+  "config_flow": true,
+  "documentation": "https://github.com/scottmcclung/ha-onebusaway-board",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/scottmcclung/ha-onebusaway-board/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}
