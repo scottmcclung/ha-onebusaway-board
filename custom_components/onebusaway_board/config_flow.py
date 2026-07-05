@@ -21,52 +21,38 @@ from .const import (
     CONF_NAME,
     CONF_SCAN_INTERVAL,
     CONF_STOP,
-    CONF_TARGETS,
     CONF_URL,
     DEFAULT_SCAN_INTERVAL_MIN,
     DEFAULT_URL,
     DOMAIN,
+    MINUTES_AFTER,
     NAME,
-    ORIGIN_MINUTES_AFTER,
 )
-
-
-def parse_targets(raw: str) -> dict[str, str]:
-    """Parse a multiline 'Label = stop_id' string into {label: stop_id}."""
-    targets: dict[str, str] = {}
-    for line in (raw or "").splitlines():
-        stripped = line.strip()
-        if not stripped or "=" not in stripped:
-            continue
-        label, _, stop = stripped.partition("=")
-        label, stop = label.strip(), stop.strip()
-        if label and stop:
-            targets[label] = stop
-    return targets
 
 
 def _interval_selector() -> selector.NumberSelector:
     return selector.NumberSelector(
         selector.NumberSelectorConfig(
-            min=1, max=60, unit_of_measurement="min", mode=selector.NumberSelectorMode.BOX
+            min=1,
+            max=60,
+            unit_of_measurement="min",
+            mode=selector.NumberSelectorMode.BOX,
         )
     )
 
 
-def _targets_selector() -> selector.TextSelector:
-    return selector.TextSelector(selector.TextSelectorConfig(multiline=True))
-
-
 class OneBusAwayBoardFlow(ConfigFlow, domain=DOMAIN):
-    """Handle the initial config flow."""
+    """Handle the initial config flow. One entry per stop."""
 
-    VERSION = 1
+    VERSION = 2
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
+            await self.async_set_unique_id(user_input[CONF_STOP])
+            self._abort_if_unique_id_configured()
             client = OneBusAwayClient(
                 user_input[CONF_URL],
                 user_input[CONF_KEY],
@@ -74,7 +60,7 @@ class OneBusAwayBoardFlow(ConfigFlow, domain=DOMAIN):
             )
             try:
                 await client.arrivals_and_departures(
-                    user_input[CONF_STOP], ORIGIN_MINUTES_AFTER
+                    user_input[CONF_STOP], MINUTES_AFTER
                 )
             except OneBusAwayAuthError:
                 errors["base"] = "auth"
@@ -95,7 +81,6 @@ class OneBusAwayBoardFlow(ConfigFlow, domain=DOMAIN):
                 ),
                 vol.Required(CONF_KEY): selector.TextSelector(),
                 vol.Required(CONF_STOP): selector.TextSelector(),
-                vol.Optional(CONF_TARGETS, default=""): _targets_selector(),
                 vol.Required(
                     CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL_MIN
                 ): _interval_selector(),
@@ -112,7 +97,7 @@ class OneBusAwayBoardFlow(ConfigFlow, domain=DOMAIN):
 
 
 class OneBusAwayOptionsFlow(OptionsFlow):
-    """Edit targets and poll interval after setup."""
+    """Edit the poll interval after setup."""
 
     def __init__(self, entry: ConfigEntry) -> None:
         self._entry = entry
@@ -126,9 +111,6 @@ class OneBusAwayOptionsFlow(OptionsFlow):
         current = {**self._entry.data, **self._entry.options}
         schema = vol.Schema(
             {
-                vol.Optional(
-                    CONF_TARGETS, default=current.get(CONF_TARGETS, "")
-                ): _targets_selector(),
                 vol.Required(
                     CONF_SCAN_INTERVAL,
                     default=current.get(

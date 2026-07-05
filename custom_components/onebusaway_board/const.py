@@ -12,14 +12,15 @@ ATTRIBUTION: str = "Data provided by OneBusAway"
 DEFAULT_URL: str = "https://api.pugetsound.onebusaway.org/api"
 DEFAULT_SCAN_INTERVAL_MIN: int = 5
 
-# How far ahead to look. The target window is wider than the origin window so a
-# train that has already left the origin is still present on its target board.
-ORIGIN_MINUTES_AFTER: int = 75
-TARGET_MINUTES_AFTER: int = 150
+# How far ahead to fetch a stop's board. Kept generous so consumers that join
+# boards across stops by tripId (e.g. "when does this train reach my
+# destination") still find a departing train on a downstream stop's board.
+MINUTES_AFTER: int = 120
+# Cap the board length exposed in attributes.
+MAX_DEPARTURES: int = 12
 
 CONF_NAME: str = "name"
 CONF_URL: str = "url"
 CONF_KEY: str = "key"
 CONF_STOP: str = "stop"
-CONF_TARGETS: str = "targets"
 CONF_SCAN_INTERVAL: str = "scan_interval"

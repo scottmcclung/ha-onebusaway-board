@@ -1,8 +1,12 @@
-"""Pure parsing/join logic for OneBusAway Board.
+"""Pure parsing logic for a single OneBusAway stop board.
 
 No Home Assistant imports on purpose: this module is fed raw decoded API JSON so
 it can be exercised against the live API (or fixtures) without standing up Home
 Assistant. The coordinator handles all I/O and hands the JSON here.
+
+Each stop is its own board. Cross-stop composition (e.g. "when does this train
+reach my destination") is a consumer concern: every departure carries its
+``trip_id``, so a consumer joins boards across stops on that key.
 """
 from __future__ import annotations
 
@@ -34,73 +38,56 @@ def _arrivals_and_departures(board: dict[str, Any]) -> list[dict[str, Any]]:
     return board.get("data", {}).get("entry", {}).get("arrivalsAndDepartures", [])
 
 
-def _target_arrivals(target_json: dict[str, Any]) -> dict[str, int | None]:
-    """Map tripId -> arrival time (epoch ms) for a single target stop's board."""
-    out: dict[str, int | None] = {}
-    for ad in _arrivals_and_departures(target_json):
-        trip = ad.get("tripId")
-        if trip:
-            out[trip] = _arrival_time(ad)
-    return out
+def build_departures(board_json: dict[str, Any]) -> list[dict[str, Any]]:
+    """Build the board for a single stop, sorted by time.
 
-
-def build_departures(
-    origin_json: dict[str, Any],
-    targets: dict[str, dict[str, Any]],
-) -> list[dict[str, Any]]:
-    """Build the origin departure board, joining each trip to its target arrivals.
-
-    ``targets`` maps a display label (e.g. "Westlake") to that stop's decoded
-    board JSON. A trip that does not serve a target (a 1 Line train has no entry
-    on a Bellevue board) simply gets ``None`` for that label — no special-casing.
+    Each entry carries both the arrival and departure time at this stop: a
+    consumer treating the stop as an origin uses ``depart_time``; one treating
+    it as a destination (matched by ``trip_id``) uses ``arrival_time``.
     """
-    target_maps = {label: _target_arrivals(j) for label, j in targets.items()}
-
     departures: list[dict[str, Any]] = []
-    for ad in _arrivals_and_departures(origin_json):
+    for ad in _arrivals_and_departures(board_json):
         depart = _departure_time(ad)
-        if depart is None:
+        arrive = _arrival_time(ad)
+        when = depart or arrive
+        if when is None:
             continue
-        trip = ad.get("tripId")
         departures.append(
             {
-                "trip_id": trip,
+                "trip_id": ad.get("tripId"),
                 "route": ad.get("routeShortName") or ad.get("routeLongName"),
                 "headsign": ad.get("tripHeadsign"),
+                "arrival_time": arrive,
                 "depart_time": depart,
                 "predicted": bool(ad.get("predicted")),
                 "status": ad.get("status"),
                 "schedule_deviation": (ad.get("tripStatus") or {}).get(
                     "scheduleDeviation"
                 ),
-                "arrivals": {
-                    label: tmap.get(trip) for label, tmap in target_maps.items()
-                },
             }
         )
 
-    departures.sort(key=lambda d: d["depart_time"])
+    departures.sort(key=lambda d: d["depart_time"] or d["arrival_time"])
     return departures
 
 
-def extract_alerts(*boards: dict[str, Any]) -> list[dict[str, Any]]:
-    """Collect de-duplicated service alerts (situations) across boards."""
-    seen: set[str] = set()
+def extract_alerts(board_json: dict[str, Any]) -> list[dict[str, Any]]:
+    """Collect service alerts (situations) for a stop's board."""
+    situations = (
+        board_json.get("data", {}).get("references", {}).get("situations", [])
+    )
     alerts: list[dict[str, Any]] = []
-    for board in boards:
-        situations = board.get("data", {}).get("references", {}).get("situations", [])
-        for sit in situations:
-            sid = sit.get("id")
-            if not sid or sid in seen:
-                continue
-            seen.add(sid)
-            alerts.append(
-                {
-                    "id": sid,
-                    "summary": (sit.get("summary") or {}).get("value"),
-                    "description": (sit.get("description") or {}).get("value"),
-                    "severity": sit.get("severity"),
-                    "url": (sit.get("url") or {}).get("value"),
-                }
-            )
+    for sit in situations:
+        sid = sit.get("id")
+        if not sid:
+            continue
+        alerts.append(
+            {
+                "id": sid,
+                "summary": (sit.get("summary") or {}).get("value"),
+                "description": (sit.get("description") or {}).get("value"),
+                "severity": sit.get("severity"),
+                "url": (sit.get("url") or {}).get("value"),
+            }
+        )
     return alerts

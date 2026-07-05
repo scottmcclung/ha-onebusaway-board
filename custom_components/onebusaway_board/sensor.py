@@ -11,7 +11,7 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import ATTRIBUTION, DOMAIN, NAME
+from .const import ATTRIBUTION, DOMAIN, MAX_DEPARTURES, NAME
 from .coordinator import OneBusAwayCoordinator
 
 
@@ -20,7 +20,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up the board sensor from a config entry."""
+    """Set up the board sensor for this stop's config entry."""
     coordinator: OneBusAwayCoordinator = hass.data[DOMAIN][entry.entry_id]
     async_add_entities([OneBusAwayBoardSensor(coordinator, entry)])
 
@@ -32,7 +32,7 @@ def _iso(ms: int | None) -> str | None:
 
 
 class OneBusAwayBoardSensor(CoordinatorEntity[OneBusAwayCoordinator], SensorEntity):
-    """Departure board sensor: state is the next departure, board in attributes."""
+    """Departure board for one stop: state is the next departure, board in attrs."""
 
     _attr_has_entity_name = True
     _attr_name = "Next departure"
@@ -58,7 +58,7 @@ class OneBusAwayBoardSensor(CoordinatorEntity[OneBusAwayCoordinator], SensorEnti
     @property
     def native_value(self) -> datetime | None:
         for dep in self._departures:
-            ms = dep.get("depart_time")
+            ms = dep.get("depart_time") or dep.get("arrival_time")
             if ms:
                 return datetime.fromtimestamp(ms / 1000, timezone.utc)
         return None
@@ -72,14 +72,11 @@ class OneBusAwayBoardSensor(CoordinatorEntity[OneBusAwayCoordinator], SensorEnti
                 "headsign": dep.get("headsign"),
                 "trip_id": dep.get("trip_id"),
                 "depart": _iso(dep.get("depart_time")),
+                "arrive": _iso(dep.get("arrival_time")),
                 "predicted": dep.get("predicted"),
                 "status": dep.get("status"),
                 "schedule_deviation": dep.get("schedule_deviation"),
-                "arrivals": {
-                    label: _iso(ms)
-                    for label, ms in (dep.get("arrivals") or {}).items()
-                },
             }
-            for dep in self._departures
+            for dep in self._departures[:MAX_DEPARTURES]
         ]
         return {"departures": departures, "alerts": data.get("alerts", [])}

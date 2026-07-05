@@ -9,12 +9,10 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import OneBusAwayClient
-from .config_flow import parse_targets
 from .const import (
     CONF_KEY,
     CONF_SCAN_INTERVAL,
     CONF_STOP,
-    CONF_TARGETS,
     CONF_URL,
     DEFAULT_SCAN_INTERVAL_MIN,
     DOMAIN,
@@ -36,11 +34,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     minutes = float(conf.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL_MIN))
     coordinator = OneBusAwayCoordinator(
-        hass,
-        client,
-        conf[CONF_STOP],
-        parse_targets(conf.get(CONF_TARGETS, "")),
-        timedelta(minutes=minutes),
+        hass, client, conf[CONF_STOP], timedelta(minutes=minutes)
     )
     await coordinator.async_config_entry_first_refresh()
 

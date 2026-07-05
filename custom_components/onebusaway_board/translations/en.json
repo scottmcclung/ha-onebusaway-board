@@ -3,13 +3,12 @@
     "step": {
       "user": {
         "title": "OneBusAway Board",
-        "description": "Enter your OneBusAway API base URL and key, and the origin stop ID. Targets are optional — one per line as 'Label = stop_id'.",
+        "description": "Add one stop. Repeat this for each stop you want a board for.",
         "data": {
           "name": "Name",
           "url": "API base URL",
           "key": "API key",
-          "stop": "Origin stop ID",
-          "targets": "Target stops (Label = stop_id, one per line)",
+          "stop": "Stop ID",
           "scan_interval": "Poll interval (minutes)"
         }
       }
@@ -18,6 +17,9 @@
       "auth": "Invalid API key.",
       "cannot_connect": "Failed to connect to the OneBusAway API.",
       "unknown": "Unexpected error."
+    },
+    "abort": {
+      "already_configured": "This stop is already configured."
     }
   },
   "options": {
@@ -25,7 +27,6 @@
       "init": {
         "title": "OneBusAway Board options",
         "data": {
-          "targets": "Target stops (Label = stop_id, one per line)",
           "scan_interval": "Poll interval (minutes)"
         }
       }
