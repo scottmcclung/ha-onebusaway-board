@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import socket
 from typing import Any
 
@@ -48,7 +49,11 @@ class OneBusAwayClient:
                 if response.status in (401, 403):
                     raise OneBusAwayAuthError("Invalid API key")
                 response.raise_for_status()
-                return await response.json()
+                # Decode explicitly as UTF-8. OBA returns UTF-8 but frequently omits the
+                # charset from Content-Type, and aiohttp's auto-detection can mis-guess
+                # Latin-1 — mojibaking characters like the U+2019 apostrophe in alerts.
+                raw = await response.read()
+                return json.loads(raw.decode("utf-8"))
         except OneBusAwayAuthError:
             raise
         except asyncio.TimeoutError as err:
